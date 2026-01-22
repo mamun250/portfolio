@@ -1,0 +1,485 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  BarChart3, 
+  Database, 
+  Code2, 
+  Layers, 
+  ExternalLink, 
+  Github, 
+  Linkedin, 
+  Mail, 
+  ChevronRight, 
+  LineChart, 
+  PieChart, 
+  Terminal,
+  Cpu,
+  Globe,
+  Download,
+  Menu,
+  X,
+  Sparkles,
+  Send,
+  Loader2,
+  BrainCircuit,
+  Lightbulb
+} from 'lucide-react';
+
+const App = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [scrolled, setScrolled] = useState(false);
+
+  // Gemini API State
+  const [aiLoading, setAiLoading] = useState(false);
+  const [dataChallenge, setDataChallenge] = useState('');
+  const [aiStrategy, setAiStrategy] = useState('');
+  const [activeProjectAnalysis, setActiveProjectAnalysis] = useState(null);
+  const [projectAiContent, setProjectAiContent] = useState('');
+
+  // Handle scroll effect for navbar
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const apiKey = ""; // Provided by environment at runtime
+
+  // Helper for Gemini API calls with exponential backoff
+  const callGemini = async (prompt, systemInstruction = "") => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+    };
+
+    let delay = 1000;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+        return result.candidates?.[0]?.content?.parts?.[0]?.text;
+      } catch (error) {
+        if (i === 4) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    }
+  };
+
+  const handleConsultAi = async () => {
+    if (!dataChallenge.trim()) return;
+    setAiLoading(true);
+    setAiStrategy('');
+    
+    const systemPrompt = `You are an AI avatar of a Senior Data Analyst. A client is presenting a business challenge. 
+    Analyze the problem and provide a 3-step high-level data strategy (Ingestion, Analysis, Action). 
+    Keep it professional, concise, and focused on ROI. Use bullet points.`;
+    
+    try {
+      const response = await callGemini(dataChallenge, systemPrompt);
+      setAiStrategy(response);
+    } catch (err) {
+      setAiStrategy("The AI is currently calibrating. Please try again in a moment.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleProjectDeepDive = async (project) => {
+    setActiveProjectAnalysis(project.title);
+    setAiLoading(true);
+    
+    const prompt = `Provide a technical "Deep Dive" for a data project titled "${project.title}". 
+    The project details are: ${project.description}. 
+    Explain: 1. Potential technical hurdles. 2. Why the tools (${project.tags.join(', ')}) were selected. 3. How to scale this for 10x more data. 
+    Write as if you are the lead analyst explaining to a CTO.`;
+    
+    try {
+      const response = await callGemini(prompt);
+      setProjectAiContent(response);
+    } catch (err) {
+      setProjectAiContent("Failed to generate technical analysis.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const skills = [
+    { category: "Languages", items: ["Python", "SQL", "R", "Julia", "JavaScript"] },
+    { category: "Tools", items: ["Tableau", "Power BI", "Excel", "Alteryx", "SAS"] },
+    { category: "Data Science", items: ["Scikit-Learn", "TensorFlow", "Pandas", "NumPy", "Matplotlib"] },
+    { category: "Cloud & DB", items: ["AWS Redshift", "Snowflake", "BigQuery", "PostgreSQL", "MongoDB"] }
+  ];
+
+  const projects = [
+    {
+      title: "Predictive Customer Churn Analysis",
+      description: "Developed a machine learning model to predict subscriber churn with 92% accuracy using a dataset of 50,000+ users.",
+      tags: ["Python", "Machine Learning", "Scikit-Learn"],
+      category: "Machine Learning",
+      metrics: "92% Accuracy"
+    },
+    {
+      title: "Supply Chain Optimization Dashboard",
+      description: "Real-time Tableau dashboard visualizing global logistics bottlenecks and identifying $1.2M in potential annual savings.",
+      tags: ["Tableau", "SQL", "ETL"],
+      category: "Visualization",
+      metrics: "15% Efficiency Increase"
+    },
+    {
+      title: "Financial Market Sentiment Engine",
+      description: "Natural Language Processing (NLP) tool analyzing 10k+ daily news articles to predict stock market trends.",
+      tags: ["Python", "NLP", "BigQuery"],
+      category: "Big Data",
+      metrics: "Real-time Processing"
+    },
+    {
+      title: "Retail Sales Forecasting Model",
+      description: "Time-series analysis using ARIMA and Prophet to forecast inventory needs across 200 store locations.",
+      tags: ["R", "Statistics", "Prophet"],
+      category: "Forecasting",
+      metrics: "Reduced Waste by 22%"
+    },
+    {
+      title: "Health Tech Patient Risk Scoring",
+      description: "Advanced data pipeline for hospital systems to identify high-risk patients based on historical medical records.",
+      tags: ["SQL", "Python", "Snowflake"],
+      category: "Data Engineering",
+      metrics: "HIPAA Compliant"
+    },
+    {
+      title: "E-commerce A/B Testing Framework",
+      description: "Automated statistical testing suite for marketing campaigns to determine conversion uplift with 95% confidence.",
+      tags: ["Statistics", "Python", "Optimizely"],
+      category: "Analysis",
+      metrics: "Statistically Significant"
+    }
+  ];
+
+  const filteredProjects = useMemo(() => {
+    if (activeFilter === 'All') return projects;
+    return projects.filter(p => p.category === activeFilter);
+  }, [activeFilter]);
+
+  const categories = ['All', ...new Set(projects.map(p => p.category))];
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0c] text-slate-200 font-sans selection:bg-blue-500/30 selection:text-blue-200">
+      {/* Navigation */}
+      <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'bg-[#0a0a0c]/80 backdrop-blur-md border-b border-white/5 py-4' : 'bg-transparent py-6'}`}>
+        <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+          <div className="flex items-center gap-2 group cursor-pointer">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
+              D
+            </div>
+            <span className="text-xl font-bold tracking-tight text-white">DATA<span className="text-blue-500">PRO</span></span>
+          </div>
+
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium">
+            {['Expertise', 'Projects', 'AI Strategy', 'Experience'].map((item) => (
+              <a key={item} href={`#${item.toLowerCase().replace(' ', '-')}`} className="text-slate-400 hover:text-white transition-colors">{item}</a>
+            ))}
+            <button className="bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2 rounded-full transition-all hover:border-blue-500/50">
+              Contact Me
+            </button>
+          </div>
+
+          <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            {isMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[120px] rounded-full" />
+        </div>
+
+        <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            Senior Data Analyst & Strategist
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white leading-tight mb-8">
+            Turning Raw Data Into <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-400">
+              Actionable Intelligence
+            </span>
+          </h1>
+          
+          <p className="max-w-2xl text-lg text-slate-400 mb-10 leading-relaxed">
+            Expert in statistical modeling, machine learning, and data visualization. 
+            I bridge the gap between complex datasets and strategic business decisions.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-2 group">
+              View Case Studies
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+            <button className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2">
+              <Download className="w-4 h-4 text-blue-400" />
+              Download Resume
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Expertise */}
+      <section id="expertise" className="py-24 px-6 bg-[#0e0e11]">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+            <div className="max-w-xl">
+              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Technical Arsenal</h2>
+              <p className="text-slate-400 text-lg">Specialized stack for high-performance insight generation.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {skills.map((skillGroup, idx) => (
+              <div key={idx} className="p-8 bg-[#15151a] rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all group">
+                <h3 className="text-blue-400 font-bold text-sm uppercase tracking-widest mb-6">{skillGroup.category}</h3>
+                <ul className="space-y-4">
+                  {skillGroup.items.map((item, i) => (
+                    <li key={i} className="flex items-center gap-3 text-slate-300 font-medium group-hover:text-white transition-colors">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500/40" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Projects Section */}
+      <section id="projects" className="py-24 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Impactful Projects</h2>
+            <div className="flex flex-wrap justify-center gap-3">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveFilter(cat)}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                    activeFilter === cat 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredProjects.map((project, idx) => (
+              <div key={idx} className="group flex flex-col bg-[#15151a] rounded-3xl border border-white/5 overflow-hidden transition-all duration-300 hover:border-blue-500/40">
+                <div className="p-8 flex-1 flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    {project.tags.map(tag => (
+                      <span key={tag} className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-400 border border-white/5 font-bold uppercase tracking-wider">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-3">{project.title}</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed mb-6 flex-1">{project.description}</p>
+                  
+                  {/* ✨ AI Deep Dive Toggle */}
+                  <div className="mb-4">
+                    <button 
+                      onClick={() => handleProjectDeepDive(project)}
+                      className="w-full py-2 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      ✨ Deep Dive with AI
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                    <span className="text-xs font-bold text-white/50">{project.metrics}</span>
+                    <div className="flex gap-3">
+                      <Github className="w-4 h-4 text-slate-500 hover:text-white cursor-pointer" />
+                      <ExternalLink className="w-4 h-4 text-slate-500 hover:text-white cursor-pointer" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ✨ AI DATA STRATEGIST SECTION */}
+      <section id="ai-strategy" className="py-24 px-6 bg-[#0a0a0c] relative">
+        <div className="max-w-5xl mx-auto">
+          <div className="relative bg-gradient-to-br from-[#1a1a20] to-[#121217] rounded-[2.5rem] border border-white/10 p-8 md:p-12 overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <BrainCircuit className="w-32 h-32 text-blue-500" />
+            </div>
+            
+            <div className="relative z-10 max-w-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                  <Sparkles className="text-blue-400 w-5 h-5" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white">Consult AI Strategist</h2>
+              </div>
+              <p className="text-slate-400 mb-8 leading-relaxed">
+                Describe a business problem or a dataset you're curious about. 
+                My digital twin will generate a custom data strategy using my technical methodology.
+              </p>
+              
+              <div className="space-y-4">
+                <div className="relative group">
+                  <textarea 
+                    value={dataChallenge}
+                    onChange={(e) => setDataChallenge(e.target.value)}
+                    placeholder="Example: We have 5 years of retail sales data and want to predict seasonal demand swings..."
+                    className="w-full bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all min-h-[120px] resize-none placeholder:text-slate-600"
+                  />
+                  <button 
+                    onClick={handleConsultAi}
+                    disabled={aiLoading || !dataChallenge.trim()}
+                    className="absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    ✨ Consult AI
+                  </button>
+                </div>
+
+                {aiStrategy && (
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6 animate-fade-in">
+                    <div className="flex items-center gap-2 mb-4 text-blue-400 text-xs font-bold uppercase tracking-widest">
+                      <Lightbulb className="w-4 h-4" />
+                      Suggested Data Strategy
+                    </div>
+                    <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line prose prose-invert max-w-none">
+                      {aiStrategy}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Experience Timeline */}
+      <section id="experience" className="py-24 px-6 bg-[#0e0e11]">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Professional Journey</h2>
+          </div>
+          <div className="space-y-12">
+            {[
+              {
+                role: "Senior Lead Data Scientist",
+                company: "FinTech Global",
+                period: "2021 — Present",
+                tasks: ["Led a team of 5 analysts", "Engineered fraud detection systems"]
+              },
+              {
+                role: "Strategic Data Analyst",
+                company: "Retail Giant Corp",
+                period: "2018 — 2021",
+                tasks: ["Optimized omnichannel marketing", "Reduced inventory slippage"]
+              }
+            ].map((job, idx) => (
+              <div key={idx} className="relative pl-12 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-blue-500/30">
+                <div className="absolute left-[-5px] top-0 w-[11px] h-[11px] rounded-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{job.role}</h3>
+                    <p className="text-blue-400 font-semibold">{job.company}</p>
+                  </div>
+                  <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{job.period}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Deep Dive Modal */}
+      {activeProjectAnalysis && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#0a0a0c]/90 backdrop-blur-md">
+          <div className="bg-[#15151a] border border-white/10 w-full max-w-2xl rounded-3xl p-8 max-h-[80vh] overflow-y-auto relative">
+            <button 
+              onClick={() => setActiveProjectAnalysis(null)}
+              className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
+            >
+              <X />
+            </button>
+            <div className="flex items-center gap-3 mb-6">
+              <Sparkles className="text-blue-400 w-6 h-6" />
+              <h3 className="text-2xl font-bold text-white">✨ Technical Deep Dive</h3>
+            </div>
+            <div className="text-blue-400 font-bold mb-4 uppercase text-xs tracking-widest">Project: {activeProjectAnalysis}</div>
+            
+            {aiLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                <p className="text-slate-400 animate-pulse">Running architectural analysis...</p>
+              </div>
+            ) : (
+              <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line border-t border-white/5 pt-6">
+                {projectAiContent}
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setActiveProjectAnalysis(null)}
+              className="mt-8 w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-bold transition-all"
+            >
+              Close Analysis
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <footer className="py-20 px-6 border-t border-white/5 bg-[#0a0a0c]">
+        <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
+          <h2 className="text-3xl md:text-5xl font-black text-white mb-8">Ready to Decode Your Data?</h2>
+          <div className="flex gap-6 mb-16">
+            <Linkedin className="w-10 h-10 text-slate-300 hover:text-blue-500 cursor-pointer transition-all" />
+            <Github className="w-10 h-10 text-slate-300 hover:text-blue-500 cursor-pointer transition-all" />
+            <Mail className="w-10 h-10 text-slate-300 hover:text-blue-500 cursor-pointer transition-all" />
+          </div>
+          <p className="text-slate-500 text-sm">© 2026 DataPro. Powered by Gemini LLM.</p>
+        </div>
+      </footer>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out forwards;
+        }
+        html { scroll-behavior: smooth; }
+      `}} />
+    </div>
+  );
+};
+
+export default App;
